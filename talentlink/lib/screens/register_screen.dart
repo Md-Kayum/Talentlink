@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -9,177 +11,208 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  String role = 'student';
+  final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
 
-  void register() async {
-    String? error = await _authService.registerUser(
-      name: nameController.text.trim(),
-      email: emailController.text.trim(),
-      password: passwordController.text.trim(),
-      role: role,
-    );
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _companyNameController = TextEditingController();
 
-    if (error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registration Successful")));
-      Navigator.pop(context); // back to login
+  String _role = 'student';
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await _authService.register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        role: _role,
+        extraData: {
+          'name': _nameController.text.trim(),
+          if (_role == 'company')
+            'companyName': _companyNameController.text.trim(),
+        },
+      );
+
+      // 🔧 FIX: Firebase auto-logs user in → SIGN OUT
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF143068), // dark blue
+      backgroundColor: const Color(0xFF143068),
+      appBar: AppBar(
+        title: const Text('Register'),
+        backgroundColor: const Color(0xFF143068),
+      ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-             
-Image.asset(
-  'lib/assets/images/logo.png', // <--- full correct path
-  width: 100,
-  height: 100,
-),
-              const SizedBox(height: 20),
-              const Text(
-                "Create Account",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2a94e3), // blue accent
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // Name field
-              TextField(
-                controller: nameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Full Name",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  prefixIcon:
-                      const Icon(Icons.person, color: Color(0xFF52cdb6)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Email field
-              TextField(
-                controller: emailController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  prefixIcon:
-                      const Icon(Icons.email, color: Color(0xFF52cdb6)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Password field
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  prefixIcon: const Icon(Icons.lock, color: Color(0xFF52cdb6)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Role dropdown
-              DropdownButtonFormField<String>(
-                value: role,
-                items: const [
-                  DropdownMenuItem(value: 'student', child: Text("Student")),
-                  DropdownMenuItem(value: 'company', child: Text("Company")),
-                ],
-                decoration: InputDecoration(
-                  labelText: "Select Role",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                ),
-                dropdownColor: const Color(0xFF143068),
-                style: const TextStyle(color: Colors.white),
-                onChanged: (value) {
-                  setState(() {
-                    role = value!;
-                  });
-                },
-              ),
-              const SizedBox(height: 30),
-
-              // Register button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: register,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2a94e3),
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text("Register"),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Login link
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Already have an account? ",
-                      style: TextStyle(color: Colors.white)),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text(
-                      "Login",
+          padding: const EdgeInsets.all(24),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Create Account',
                       style: TextStyle(
-                          color: Color(0xFF52cdb6),
-                          fontWeight: FontWeight.bold),
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      value: _role,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'student',
+                          child: Text('Student'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'company',
+                          child: Text('Company'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          _role = val!;
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Register as',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Required' : null,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    if (_role == 'company') ...[
+                      TextFormField(
+                        controller: _companyNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Company Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) =>
+                            v == null || v.isEmpty
+                                ? 'Company name required'
+                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) =>
+                          v == null || !v.contains('@')
+                              ? 'Enter valid email'
+                              : null,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                      validator: (v) =>
+                          v != null && v.length >= 6
+                              ? null
+                              : 'Min 6 characters',
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _register,
+                        child: _loading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text('Register'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Already have an account? Login'),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
