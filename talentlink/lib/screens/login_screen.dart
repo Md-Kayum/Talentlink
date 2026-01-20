@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'register_screen.dart';
-import 'student_home.dart';
-import 'company_home.dart';
-import 'admin_home.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,160 +10,168 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
 
-  void login() async {
-    String? error = await _authService.loginUser(
-      email: emailController.text.trim(),
-      password: passwordController.text.trim(),
-    );
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-    if (error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
-    } else {
-      final user = FirebaseAuth.instance.currentUser!;
-      final userData = await _authService.getUserData(user.uid);
-      final role = userData['role'];
+  bool _loading = false;
+  String? _error;
 
-      if (role == 'student') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const StudentHome()),
-          (route) => false,
-        );
-      } else if (role == 'company') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const CompanyHome()),
-          (route) => false,
-        );
-      } else if (role == 'admin') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminHome()),
-          (route) => false,
-        );
-      }
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await _authService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      // AuthGate handles navigation
+    } catch (e) {
+      setState(() {
+        _error = _mapError(e.toString());
+      });
+    } finally {
+      setState(() {
+        _loading = false;
+      });
     }
+  }
+
+  String _mapError(String raw) {
+    if (raw.contains('user-not-found')) {
+      return 'No account found with this email.';
+    }
+    if (raw.contains('wrong-password')) {
+      return 'Incorrect password.';
+    }
+    if (raw.contains('invalid-email')) {
+      return 'Invalid email address.';
+    }
+    return 'Login failed. Please try again.';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF143068), // dark blue background
+      backgroundColor: const Color(0xFF143068),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Image.asset(
-  'lib/assets/images/logo.png', // <--- full correct path
-  width: 100,
-  height: 100,
-),
-              const SizedBox(height: 20),
-              const Text(
-                "TalentLink",
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2a94e3), // blue accent
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // Email TextField
-              TextField(
-                controller: emailController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  prefixIcon: const Icon(Icons.email, color: Color(0xFF52cdb6)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Password TextField
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  labelStyle: const TextStyle(color: Color(0xFF52cdb6)),
-                  prefixIcon: const Icon(Icons.lock, color: Color(0xFF52cdb6)),
-                  filled: true,
-                  fillColor: const Color(0xFF143068).withOpacity(0.8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // Login Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2a94e3), // blue button
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+          padding: const EdgeInsets.all(24),
+          child: Card(
+            elevation: 6,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    /// LOGO
+                    Image.asset(
+                      'lib/assets/images/logo.png', // 🔁 change filename if needed
+                      height: 80,
                     ),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text("Login"),
-                ),
-              ),
-              const SizedBox(height: 20),
 
-              // Sign up link
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Don't have an account? ",
-                      style: TextStyle(color: Colors.white)),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const RegisterScreen()),
-                      );
-                    },
-                    child: const Text(
-                      "Sign Up",
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'TalentLink',
                       style: TextStyle(
-                        color: Color(0xFF52cdb6), // teal accent
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      'Login to your account',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    /// EMAIL
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) =>
+                          v == null || !v.contains('@')
+                              ? 'Enter a valid email'
+                              : null,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    /// PASSWORD
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                      validator: (v) =>
+                          v != null && v.length >= 6
+                              ? null
+                              : 'Password must be at least 6 characters',
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _login,
+                        child: _loading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text('Login'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Create new account'),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-
- 
