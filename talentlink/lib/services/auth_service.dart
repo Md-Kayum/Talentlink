@@ -5,65 +5,67 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Register user (Student / Company)
-  Future<String?> registerUser({
-    required String name,
-    required String email,
-    required String password,
-    required String role,
-  }) async {
-    try {
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'uid': userCredential.user!.uid,
-        'name': name,
-        'email': email,
-        'role': role,
-        'createdAt': Timestamp.now(),
-      });
-
-      return null; // success
-    } on FirebaseAuthException catch (e) {
-      return e.message;
-    }
-  }
-
-  // Login user
-  Future<String?> loginUser({
+  /// -------------------------
+  /// LOGIN
+  /// -------------------------
+  Future<void> login({
     required String email,
     required String password,
   }) async {
-    try {
-      await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return null; // success
-    } on FirebaseAuthException catch (e) {
-      return e.message;
-    }
+    await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
-  // Logout
+  /// -------------------------
+  /// REGISTER
+  /// -------------------------
+  Future<void> register({
+    required String email,
+    required String password,
+    required String role, // student | company | admin
+    required Map<String, dynamic> extraData,
+  }) async {
+    // 1. Create auth user
+    UserCredential credential =
+        await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    final uid = credential.user!.uid;
+
+    // 2. Create Firestore user document
+    await _firestore.collection('users').doc(uid).set({
+      'uid': uid,
+      'email': email,
+      'role': role,
+      'createdAt': FieldValue.serverTimestamp(),
+      ...extraData,
+    });
+  }
+
+  /// -------------------------
+  /// LOGOUT
+  /// -------------------------
   Future<void> logout() async {
     await _auth.signOut();
   }
 
-  // Get user data from Firestore
-  Future<Map<String, dynamic>> getUserData(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
-    if (doc.exists) {
-      return doc.data()!;
-    } else {
-      throw Exception("User not found");
-    }
+  /// -------------------------
+  /// CURRENT USER ROLE
+  /// -------------------------
+  Future<String?> getCurrentUserRole() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    final doc =
+        await _firestore.collection('users').doc(user.uid).get();
+
+    if (!doc.exists) return null;
+
+    final data = doc.data();
+    return data?['role'] as String?;
   }
 }
